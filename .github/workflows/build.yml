@@ -82,7 +82,6 @@ class LibffiRecipe(AutoconfRecipe):
         # done (AutoconfRecipe parent doesn't run again, so ok)
 
 recipe = LibffiRecipe()
-EOF
 
           # 5. Xuất JAVA_HOME cho Gradle
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
@@ -91,3 +90,4 @@ EOF
           # 6. Quay lại root project và build
           cd "$GITHUB_WORKSPACE"
           buildozer android debug
+
