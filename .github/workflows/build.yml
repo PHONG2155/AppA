@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     env:
       ANDROIDAPI: "34"
@@ -33,11 +33,11 @@ jobs:
             pkg-config \
             unzip \
             git \
+            curl \
             openjdk-17-jdk \
             libffi-dev \
             libssl-dev \
-            zlib1g-dev \
-            curl
+            zlib1g-dev
 
       - name: Install Python deps
         run: |
@@ -48,13 +48,13 @@ jobs:
         run: |
           set -e
 
-          # create SDK dir in workspace
+          # Create SDK dir in workspace
           mkdir -p "$GITHUB_WORKSPACE/.android-sdk"
           export ANDROID_SDK_ROOT="$GITHUB_WORKSPACE/.android-sdk"
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
-          # download commandline tools (sdkmanager)
+          # Download commandline tools (sdkmanager)
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
           curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdtools.zip
@@ -65,7 +65,7 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-${ANDROIDAPI}" "build-tools;36.1.0" "ndk;27.0.12077973"
 
-          # persist env for later steps
+          # Persist env for later steps
           {
             echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
             echo "ANDROID_HOME=$ANDROID_HOME"
@@ -84,7 +84,7 @@ jobs:
           python --version
           buildozer --version || true
 
-          # --- 0. make buildozer think sdk is under ~/.buildozer ---
+          # --- 0. trick buildozer so it finds SDK in ~/.buildozer ---
           mkdir -p "$HOME/.buildozer/android/platform"
           if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
             ln -s "$ANDROID_SDK_ROOT" "$HOME/.buildozer/android/platform/android-sdk"
@@ -107,33 +107,33 @@ import sh
 from pythonforandroid.logger import shprint
 
 class LibffiRecipe(AutoconfRecipe):
-    version = "3.4.4"
-    url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz"
-    built_libraries = {"libffi.so": "inst/lib"}
+  version = "3.4.4"
+  url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz"
+  built_libraries = {"libffi.so": "inst/lib"}
 
-    def should_build(self, arch):
-        return True
+  def should_build(self, arch):
+    return True
 
-    def build_arch(self, arch):
-        env = self.get_build_env(arch)
-        build_dir = self.get_build_dir(arch.arch)
-        install_dir = self.get_install_dir(arch)
+  def build_arch(self, arch):
+    env = self.get_build_env(arch)
+    build_dir = self.get_build_dir(arch.arch)
+    install_dir = self.get_install_dir(arch)
 
-        self.apply_patches(arch)
+    self.apply_patches(arch)
 
-        with self.chdir(build_dir):
-            host = arch.command_prefix
-            shprint(
-                sh.Command("./configure"),
-                f"--host={host}",
-                "--enable-static",
-                "--disable-docs",
-                "--disable-dependency-tracking",
-                f"--prefix={install_dir}",
-                _env=env
-            )
-            shprint(sh.make, "-j4", _env=env)
-            shprint(sh.make, "install", _env=env)
+    with self.chdir(build_dir):
+      host = arch.command_prefix
+      shprint(
+        sh.Command("./configure"),
+        f"--host={host}",
+        "--enable-static",
+        "--disable-docs",
+        "--disable-dependency-tracking",
+        f"--prefix={install_dir}",
+        _env=env
+      )
+      shprint(sh.make, "-j4", _env=env)
+      shprint(sh.make, "install", _env=env)
 
 recipe = LibffiRecipe()
 EOF
@@ -141,7 +141,7 @@ EOF
           ABS_P4A_DIR="$P4A_DIR"
           ABS_RECIPES_DIR="$P4A_DIR/pythonforandroid/recipes"
 
-          # --- 2. make sure buildozer.spec has required fields ---
+          # --- 2. ensure buildozer.spec has required keys ---
           grep -q "^title =" buildozer.spec           || echo "title = LoginDemo" >> buildozer.spec
           grep -q "^package.name =" buildozer.spec    || echo "package.name = logindemo" >> buildozer.spec
           grep -q "^package.domain =" buildozer.spec  || echo "package.domain = org.example" >> buildozer.spec
@@ -164,17 +164,16 @@ EOF
           cat buildozer.spec
           echo "================================"
 
-          # --- 3. clean previous libffi builds just in case ---
+          # --- 3. clean old libffi build dirs (defensive) ---
           rm -rf .buildozer/android/platform/build-*/build/other_builds/libffi || true
           rm -rf $HOME/.buildozer/android/platform/build-*/build/other_builds/libffi || true
 
-          # --- 4. run buildozer ---
+          # --- 4. build apk ---
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH="$JAVA_HOME/bin:$PATH"
           buildozer android debug
 
       - name: Upload APK artifact
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
