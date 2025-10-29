@@ -4,11 +4,12 @@ from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition
 from kivy.properties import StringProperty, ObjectProperty
 from kivy.core.window import Window
 
-# KÍCH THƯỚC TEST TRÊN PC
+# Kích thước giả lập màn hình điện thoại khi chạy trên PC
 Window.size = (400, 800)
 
-# giả bộ database trong RAM
+# "CSDL" người dùng trong RAM (tạm thời)
 USERS = {}
+
 
 class LoginScreen(Screen):
     email_input = ObjectProperty(None)
@@ -35,6 +36,8 @@ class LoginScreen(Screen):
             self.message_label.color = (1, 0.4, 0.4, 1)
 
     def goto_register(self):
+        # dọn message cũ để form sạch
+        self.message_label.text = ""
         self.manager.current = "register"
 
 
@@ -53,41 +56,57 @@ class RegisterScreen(Screen):
 
         # validate
         if not name or not email or not pw1 or not pw2:
-            self.message_label.text = "Điền đầy đủ thông tin."
-            self.message_label.color = (1, 0.4, 0.4, 1)
+            self._set_msg("Điền đầy đủ thông tin.", error=True)
             return
 
         if "@" not in email:
-            self.message_label.text = "Email không hợp lệ."
-            self.message_label.color = (1, 0.4, 0.4, 1)
+            self._set_msg("Email không hợp lệ.", error=True)
             return
 
         if pw1 != pw2:
-            self.message_label.text = "Mật khẩu không khớp."
-            self.message_label.color = (1, 0.4, 0.4, 1)
+            self._set_msg("Mật khẩu không khớp.", error=True)
             return
 
         if len(pw1) < 4:
-            self.message_label.text = "Mật khẩu tối thiểu 4 ký tự."
-            self.message_label.color = (1, 0.4, 0.4, 1)
+            self._set_msg("Mật khẩu tối thiểu 4 ký tự.", error=True)
             return
 
-        # check tồn tại
         if email in USERS:
-            self.message_label.text = "Email đã tồn tại."
-            self.message_label.color = (1, 0.4, 0.4, 1)
+            self._set_msg("Email đã tồn tại.", error=True)
             return
 
-        # lưu "db"
+        # lưu user
         USERS[email] = {
             "name": name,
             "password": pw1
         }
 
-        self.message_label.text = "Tạo tài khoản thành công! Đăng nhập nhé."
-        self.message_label.color = (0.5, 1, 0.5, 1)
+        # lấy screen login để prefill email và báo thành công
+        sm = self.manager
+        login_screen = sm.get_screen("login")
+        login_screen.email_input.text = email
+        login_screen.message_label.text = "Tạo tài khoản thành công. Đăng nhập nhé."
+        login_screen.message_label.color = (0.5, 1, 0.5, 1)
+
+        # clear form đăng ký cho sạch
+        self.name_input.text = ""
+        self.email_input.text = ""
+        self.pw_input.text = ""
+        self.pw2_input.text = ""
+        self._set_msg("")
+
+        # chuyển về màn hình login
+        sm.current = "login"
+
+    def _set_msg(self, text, error=False):
+        self.message_label.text = text
+        if error:
+            self.message_label.color = (1, 0.4, 0.4, 1)
+        else:
+            self.message_label.color = (0.5, 1, 0.5, 1)
 
     def goto_login(self):
+        # user bấm link quay lại đăng nhập
         self.manager.current = "login"
 
 
@@ -104,12 +123,16 @@ class LoginApp(App):
     current_user = StringProperty("")
 
     def build(self):
+        # load layout Kivy
         Builder.load_file("ui.kv")
+
+        # tạo screen manager và add các màn
         sm = ScreenManager(transition=NoTransition())
         sm.add_widget(LoginScreen(name="login"))
         sm.add_widget(RegisterScreen(name="register"))
         sm.add_widget(HomeScreen(name="home"))
         return sm
+
 
 if __name__ == "__main__":
     LoginApp().run()
