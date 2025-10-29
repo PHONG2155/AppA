@@ -55,7 +55,7 @@ jobs:
           pip install --upgrade pip
           pip install buildozer Cython
 
-      - name: Prepare Android SDK / sdkmanager
+      - name: Prepare Android SDK
         run: |
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
@@ -63,9 +63,8 @@ jobs:
           unzip -q cmdtools.zip
           rm cmdtools.zip
           mv cmdline-tools latest
-          test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
-      - name: Accept Android SDK licenses and install platforms/build-tools
+      - name: Accept Android SDK Licenses
         run: |
           yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
@@ -77,33 +76,31 @@ jobs:
       - name: Build APK (debug)
         shell: bash
         run: |
-          # 1. Link SDK cho Buildozer
+          # Chuẩn bị SDK cho Buildozer
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
           mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
-          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
-          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" \
-            $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
 
-          # 2. Thêm license & kiến trúc
+          # Bổ sung cấu hình trong buildozer.spec
           grep -q "android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
           grep -q "android.archs" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
 
-          # 3. Clone python-for-android (master)
+          # Clone python-for-android
           P4A_DIR="$HOME/.buildozer/android/platform/python-for-android"
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
 
-          # 4. Patch libffi recipe (bỏ autoreconf lỗi)
-          cat <<'EOF' > "$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
+          # PATCH recipe libffi để bỏ autogen.sh lỗi
+          echo "Patching libffi recipe..."
+          cat > "$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py" << 'EOF'
 from pythonforandroid.recipe import AutoconfRecipe
 import sh
 from pythonforandroid.logger import shprint
-
 
 class LibffiRecipe(AutoconfRecipe):
     version = "3.4.4"
@@ -134,17 +131,16 @@ class LibffiRecipe(AutoconfRecipe):
             shprint(sh.make, "-j4", _env=env)
             shprint(sh.make, "install", _env=env)
 
-
 recipe = LibffiRecipe()
 EOF
 
-          # 5. Build APK
+          # Build APK
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
           cd "$GITHUB_WORKSPACE"
           buildozer android debug
 
-      - name: Upload APK artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
