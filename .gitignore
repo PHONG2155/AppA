@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+
+build/
+bin/
+.buildozer/
+.gradle/
+
+venv/
+.venv/
+
+.vscode/
