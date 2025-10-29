@@ -12,7 +12,7 @@ jobs:
     env:
       ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
       ANDROID_HOME: ${{ github.workspace }}/.android-sdk
-      PATH: ${{ github.workspace }}/.android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android-sdk/platform-tools:${{ env.PATH }}
+      PATH: ${{ github.workspace }}/.android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android-sdk/platform-tools:/usr/local/bin:/usr/bin:/bin
 
     steps:
       - name: Checkout source
@@ -51,19 +51,19 @@ jobs:
 
       - name: Prepare Android SDK / sdkmanager
         run: |
-          # tạo thư mục sdk root
+          # Tạo thư mục SDK
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
 
-          # tải commandline-tools chính thức từ Google
+          # Tải commandline-tools chính thức (sdkmanager nằm trong này)
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip
           rm cmdtools.zip
 
-          # Google giải nén ra thư mục "cmdline-tools", mình cần rename thành "latest"
+          # Google giải nén ra "cmdline-tools", mình rename thành "latest"
           mv cmdline-tools latest
 
-          # verify sdkmanager exists
+          # Kiểm tra sdkmanager có tồn tại
           test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
       - name: Accept Android SDK licenses and install platforms/build-tools
@@ -79,16 +79,17 @@ jobs:
 
       - name: Build APK (debug)
         run: |
-          # buildozer expects ~/.buildozer and will try to install its own SDK,
-          # nhưng ta muốn nó dùng SDK mình đã chuẩn bị (ANDROID_SDK_ROOT)
-          # Trick: tạo symlink để buildozer nhìn thấy SDK tại chỗ nó mong đợi.
+          # buildozer mặc định tìm SDK ở ~/.buildozer/android/platform/android-sdk
+          # Ta sẽ link SDK mình đã chuẩn bị vào đó để tránh tải lại và tránh hỏi license
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
-          # thêm 1 số cấu hình hữu ích nếu cần tránh prompt license (tùy version buildozer)
-          # echo "android.accept_sdk_license = True" >> buildozer.spec || true
+          # Bật chấp nhận license trong spec (nếu dòng đã có thì không sao)
+          if ! grep -q "android.accept_sdk_license" buildozer.spec; then
+            echo "android.accept_sdk_license = True" >> buildozer.spec
+          fi
 
           buildozer android debug
 
