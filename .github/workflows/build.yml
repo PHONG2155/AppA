@@ -72,7 +72,6 @@ jobs:
         shell: bash
         run: |
           set -e
-
           echo "== ENV check =="
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           echo "PATH=$PATH"
@@ -80,7 +79,6 @@ jobs:
           python --version
           buildozer --version || true
 
-          # 0. trick buildozer sdk path
           mkdir -p "$HOME/.buildozer/android/platform"
           if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
             ln -s "$ANDROID_SDK_ROOT" "$HOME/.buildozer/android/platform/android-sdk"
@@ -90,12 +88,10 @@ jobs:
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager" || true
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" "$HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager" || true
 
-          # 1. clone python-for-android
           P4A_DIR="$HOME/p4a-custom"
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
 
-          # 2. overwrite libffi recipe file without here-doc
           TARGET_FILE="$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
           rm -f "$TARGET_FILE"
           printf '%s\n' \
@@ -138,34 +134,26 @@ jobs:
           ABS_P4A_DIR="$P4A_DIR"
           ABS_RECIPES_DIR="$P4A_DIR/pythonforandroid/recipes"
 
-          # 3. ensure buildozer.spec minimal keys
-          grep -q "^title =" buildozer.spec           || echo "title = LoginDemo" >> buildozer.spec
-          grep -q "^package.name =" buildozer.spec    || echo "package.name = logindemo" >> buildozer.spec
-          grep -q "^package.domain =" buildozer.spec  || echo "package.domain = org.example" >> buildozer.spec
-          grep -q "^version =" buildozer.spec         || echo "version = 0.1" >> buildozer.spec
-          grep -q "^requirements =" buildozer.spec    || echo "requirements = python3,kivy==2.3.0" >> buildozer.spec
-          grep -q "^android.api =" buildozer.spec     || echo "android.api = ${ANDROIDAPI}" >> buildozer.spec
-          grep -q "^android.minapi =" buildozer.spec  || echo "android.minapi = ${ANDROIDMINAPI}" >> buildozer.spec
-          grep -q "^android.archs =" buildozer.spec   || echo "android.archs = arm64-v8a" >> buildozer.spec
+          grep -q "^title =" buildozer.spec || echo "title = LoginDemo" >> buildozer.spec
+          grep -q "^package.name =" buildozer.spec || echo "package.name = logindemo" >> buildozer.spec
+          grep -q "^package.domain =" buildozer.spec || echo "package.domain = org.example" >> buildozer.spec
+          grep -q "^version =" buildozer.spec || echo "version = 0.1" >> buildozer.spec
+          grep -q "^requirements =" buildozer.spec || echo "requirements = python3,kivy==2.3.0" >> buildozer.spec
+          grep -q "^android.api =" buildozer.spec || echo "android.api = ${ANDROIDAPI}" >> buildozer.spec
+          grep -q "^android.minapi =" buildozer.spec || echo "android.minapi = ${ANDROIDMINAPI}" >> buildozer.spec
+          grep -q "^android.archs =" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
           grep -q "^android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
 
           sed -i '/^p4a\.source_dir/d' buildozer.spec
           sed -i '/^p4a\.local_recipes/d' buildozer.spec
           sed -i '/^p4a\.branch/d' buildozer.spec
-
           echo "p4a.source_dir = ${ABS_P4A_DIR}" >> buildozer.spec
           echo "p4a.local_recipes = ${ABS_RECIPES_DIR}" >> buildozer.spec
           echo "p4a.branch = master" >> buildozer.spec
 
-          echo "===== FINAL buildozer.spec ====="
-          cat buildozer.spec
-          echo "================================"
-
-          # 4. clean old libffi caches (defensive)
           rm -rf .buildozer/android/platform/build-*/build/other_builds/libffi || true
           rm -rf $HOME/.buildozer/android/platform/build-*/build/other_builds/libffi || true
 
-          # 5. build apk
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH="$JAVA_HOME/bin:$PATH"
           buildozer android debug
