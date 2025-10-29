@@ -6,160 +6,48 @@ on:
       - main
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROIDAPI: "34"
-      ANDROIDMINAPI: "21"
-
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.10'
 
-      - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            unzip \
-            git \
-            curl \
-            openjdk-17-jdk \
-            libffi-dev \
-            libssl-dev \
-            zlib1g-dev
-
-      - name: Install Python deps
+      - name: Install buildozer + deps
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer==1.5.0 cython==0.29.* virtualenv
+          pip install "cython<3.1" buildozer
 
-      - name: Prepare Android SDK / NDK
+      - name: Install system build deps
         run: |
-          set -e
-          mkdir -p "$GITHUB_WORKSPACE/.android-sdk"
-          export ANDROID_SDK_ROOT="$GITHUB_WORKSPACE/.android-sdk"
-          export ANDROID_HOME="$ANDROID_SDK_ROOT"
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config build-essential unzip zip
 
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          cd "$ANDROID_SDK_ROOT/cmdline-tools"
-          curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdtools.zip
-          unzip -q cmdtools.zip
-          rm cmdtools.zip
-          mv cmdline-tools latest
-
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-${ANDROIDAPI}" "build-tools;36.1.0" "ndk;27.0.12077973"
-
-          {
-            echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-            echo "ANDROID_HOME=$ANDROID_HOME"
-            echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-          } >> "$GITHUB_ENV"
-
-      - name: Build APK (debug)
-        shell: bash
+      - name: Warm up buildozer (download SDK/NDK etc.)
         run: |
-          set -e
-          echo "== ENV check =="
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "PATH=$PATH"
-          java -version
-          python --version
-          buildozer --version || true
+          # chạy 1 lệnh nhẹ để buộc buildozer tải python-for-android, SDK/NDK, v.v.
+          buildozer android p4a -- version || true
+          echo "Warmup done ✅"
 
-          mkdir -p "$HOME/.buildozer/android/platform"
-          if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
-            ln -s "$ANDROID_SDK_ROOT" "$HOME/.buildozer/android/platform/android-sdk"
-          fi
-
-          mkdir -p "$HOME/.buildozer/android/platform/android-sdk/tools/bin"
-          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager" || true
-          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" "$HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager" || true
-
-          P4A_DIR="$HOME/p4a-custom"
-          rm -rf "$P4A_DIR"
-          git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
-
-          TARGET_FILE="$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
-          rm -f "$TARGET_FILE"
-          printf '%s\n' \
-"from pythonforandroid.recipe import AutoconfRecipe" \
-"import sh" \
-"from pythonforandroid.logger import shprint" \
-"" \
-"class LibffiRecipe(AutoconfRecipe):" \
-"    version = \"3.4.4\"" \
-"    url = \"https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz\"" \
-"    built_libraries = {\"libffi.so\": \"inst/lib\"}" \
-"" \
-"    def should_build(self, arch):" \
-"        return True" \
-"" \
-"    def build_arch(self, arch):" \
-"        env = self.get_build_env(arch)" \
-"        build_dir = self.get_build_dir(arch.arch)" \
-"        install_dir = self.get_install_dir(arch)" \
-"" \
-"        self.apply_patches(arch)" \
-"" \
-"        with self.chdir(build_dir):" \
-"            host = arch.command_prefix" \
-"            shprint(" \
-"                sh.Command(\"./configure\")," \
-"                f\"--host={host}\"," \
-"                \"--enable-static\"," \
-"                \"--disable-docs\"," \
-"                \"--disable-dependency-tracking\"," \
-"                f\"--prefix={install_dir}\"," \
-"                _env=env" \
-"            )" \
-"            shprint(sh.make, \"-j4\", _env=env)" \
-"            shprint(sh.make, \"install\", _env=env)" \
-"" \
-"recipe = LibffiRecipe()" \
-          > "$TARGET_FILE"
-
-          ABS_P4A_DIR="$P4A_DIR"
-          ABS_RECIPES_DIR="$P4A_DIR/pythonforandroid/recipes"
-
-          grep -q "^title =" buildozer.spec || echo "title = LoginDemo" >> buildozer.spec
-          grep -q "^package.name =" buildozer.spec || echo "package.name = logindemo" >> buildozer.spec
-          grep -q "^package.domain =" buildozer.spec || echo "package.domain = org.example" >> buildozer.spec
-          grep -q "^version =" buildozer.spec || echo "version = 0.1" >> buildozer.spec
-          grep -q "^requirements =" buildozer.spec || echo "requirements = python3,kivy==2.3.0" >> buildozer.spec
-          grep -q "^android.api =" buildozer.spec || echo "android.api = ${ANDROIDAPI}" >> buildozer.spec
-          grep -q "^android.minapi =" buildozer.spec || echo "android.minapi = ${ANDROIDMINAPI}" >> buildozer.spec
-          grep -q "^android.archs =" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
-          grep -q "^android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
-
-          sed -i '/^p4a\.source_dir/d' buildozer.spec
-          sed -i '/^p4a\.local_recipes/d' buildozer.spec
-          sed -i '/^p4a\.branch/d' buildozer.spec
-          echo "p4a.source_dir = ${ABS_P4A_DIR}" >> buildozer.spec
-          echo "p4a.local_recipes = ${ABS_RECIPES_DIR}" >> buildozer.spec
-          echo "p4a.branch = master" >> buildozer.spec
-
-          rm -rf .buildozer/android/platform/build-*/build/other_builds/libffi || true
-          rm -rf $HOME/.buildozer/android/platform/build-*/build/other_builds/libffi || true
-
-          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-          export PATH="$JAVA_HOME/bin:$PATH"
+      - name: Build APK (debug) using local libffi stub
+        env:
+          P4A_LOCAL_RECIPES: ./p4a_local/recipes
+        run: |
           buildozer android debug
 
-      - name: Upload APK artifact
+      - name: Upload built APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: bin/*.apk
+          name: myapp-debug.apk
+          path: bin/*-debug.apk
