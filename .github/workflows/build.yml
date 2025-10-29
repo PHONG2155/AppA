@@ -52,79 +52,60 @@ jobs:
 
       - name: Install buildozer
         run: |
-            pip install --upgrade pip
-            pip install buildozer Cython
+          pip install --upgrade pip
+          pip install buildozer Cython
 
       - name: Prepare Android SDK / sdkmanager
         run: |
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
-
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip
           rm cmdtools.zip
-
           mv cmdline-tools latest
-
           test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
       - name: Accept Android SDK licenses and install platforms/build-tools
         run: |
           yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
-
           "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-${ANDROIDAPI}" \
             "build-tools;34.0.0"
-
           yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
       - name: Build APK (debug)
+        shell: bash
         run: |
-          # 1. Chuẩn SDK cho buildozer
+          # 1. Link SDK cho Buildozer
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
           mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
-          if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-              $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-          fi
-          if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" ]; then
-            ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" \
-              $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
-          fi
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" \
+            $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
 
-          # 2. Đảm bảo spec có accept license + arch arm64 only
-          if ! grep -q "android.accept_sdk_license" buildozer.spec; then
-            echo "android.accept_sdk_license = True" >> buildozer.spec
-          fi
-          if ! grep -q "android.archs" buildozer.spec; then
-            echo "android.archs = arm64-v8a" >> buildozer.spec
-          fi
+          # 2. Thêm license & kiến trúc
+          grep -q "android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
+          grep -q "android.archs" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
 
-          # 3. Force python-for-android master
+          # 3. Clone python-for-android (master)
           P4A_DIR="$HOME/.buildozer/android/platform/python-for-android"
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
-          cd "$P4A_DIR"
 
-          # 4. PATCH libffi recipe để bỏ autoreconf/autogen.sh lỗi
-          cat > pythonforandroid/recipes/libffi/__init__.py << 'EOF'
+          # 4. Patch libffi recipe (bỏ autoreconf lỗi)
+          cat <<'EOF' > "$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
 from pythonforandroid.recipe import AutoconfRecipe
 import sh
 from pythonforandroid.logger import shprint
-import os
 
 
 class LibffiRecipe(AutoconfRecipe):
-    """
-    Patched libffi recipe:
-    - Use official release tarball (already has configure)
-    - Skip autoreconf/autogen.sh that breaks with Ubuntu 24 autoconf
-    """
     version = "3.4.4"
     url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz"
     built_libraries = {"libffi.so": "inst/lib"}
@@ -134,7 +115,6 @@ class LibffiRecipe(AutoconfRecipe):
 
     def build_arch(self, arch):
         env = self.get_build_env(arch)
-
         build_dir = self.get_build_dir(arch.arch)
         install_dir = self.get_install_dir(arch)
 
@@ -158,11 +138,9 @@ class LibffiRecipe(AutoconfRecipe):
 recipe = LibffiRecipe()
 EOF
 
-          # 5. Xuất JAVA_HOME cho Gradle
+          # 5. Build APK
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
-
-          # 6. Build APK
           cd "$GITHUB_WORKSPACE"
           buildozer android debug
 
