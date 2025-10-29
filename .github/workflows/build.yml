@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-            python-version: "3.11"
+          python-version: "3.11"
 
       - name: Install system packages
         run: |
@@ -36,7 +36,8 @@ jobs:
             openjdk-17-jdk \
             libffi-dev \
             libssl-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            curl
 
       - name: Install Python deps
         run: |
@@ -47,13 +48,13 @@ jobs:
         run: |
           set -e
 
-          # tạo thư mục SDK chuẩn như buildozer mong đợi
-          mkdir -p $GITHUB_WORKSPACE/.android-sdk
+          # create SDK dir in workspace
+          mkdir -p "$GITHUB_WORKSPACE/.android-sdk"
           export ANDROID_SDK_ROOT="$GITHUB_WORKSPACE/.android-sdk"
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
-          # tải commandline-tools (sdkmanager)
+          # download commandline tools (sdkmanager)
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
           curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdtools.zip
@@ -64,12 +65,12 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-${ANDROIDAPI}" "build-tools;36.1.0" "ndk;27.0.12077973"
 
-          # xuất biến môi trường cho các step sau
+          # persist env for later steps
           {
             echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
             echo "ANDROID_HOME=$ANDROID_HOME"
             echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-          } >> $GITHUB_ENV
+          } >> "$GITHUB_ENV"
 
       - name: Build APK (debug)
         shell: bash
@@ -83,17 +84,17 @@ jobs:
           python --version
           buildozer --version || true
 
-          # ---------- 0. chuẩn bị sdk layout mà buildozer muốn ----------
-          mkdir -p $HOME/.buildozer/android/platform
-          if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
-            ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
+          # --- 0. make buildozer think sdk is under ~/.buildozer ---
+          mkdir -p "$HOME/.buildozer/android/platform"
+          if [ ! -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
+            ln -s "$ANDROID_SDK_ROOT" "$HOME/.buildozer/android/platform/android-sdk"
           fi
 
-          mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
-          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
-          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
+          mkdir -p "$HOME/.buildozer/android/platform/android-sdk/tools/bin"
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager" || true
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" "$HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager" || true
 
-          # ---------- 1. clone python-for-android để patch libffi ----------
+          # --- 1. clone python-for-android and patch libffi recipe ---
           P4A_DIR="$HOME/p4a-custom"
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
@@ -137,10 +138,10 @@ class LibffiRecipe(AutoconfRecipe):
 recipe = LibffiRecipe()
 EOF
 
-          # ---------- 2. ensure buildozer.spec có đủ field ----------
           ABS_P4A_DIR="$P4A_DIR"
           ABS_RECIPES_DIR="$P4A_DIR/pythonforandroid/recipes"
 
+          # --- 2. make sure buildozer.spec has required fields ---
           grep -q "^title =" buildozer.spec           || echo "title = LoginDemo" >> buildozer.spec
           grep -q "^package.name =" buildozer.spec    || echo "package.name = logindemo" >> buildozer.spec
           grep -q "^package.domain =" buildozer.spec  || echo "package.domain = org.example" >> buildozer.spec
@@ -163,13 +164,13 @@ EOF
           cat buildozer.spec
           echo "================================"
 
-          # ---------- 3. cleanup libffi cache ----------
+          # --- 3. clean previous libffi builds just in case ---
           rm -rf .buildozer/android/platform/build-*/build/other_builds/libffi || true
           rm -rf $HOME/.buildozer/android/platform/build-*/build/other_builds/libffi || true
 
-          # ---------- 4. build ----------
+          # --- 4. run buildozer ---
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-          export PATH=$JAVA_HOME/bin:$PATH
+          export PATH="$JAVA_HOME/bin:$PATH"
           buildozer android debug
 
       - name: Upload APK artifact
