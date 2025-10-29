@@ -64,19 +64,27 @@ jobs:
           rm cmdtools.zip
           mv cmdline-tools latest
 
-      - name: Accept Android SDK Licenses
+      - name: Accept Android SDK Licenses and install platforms/build-tools
         run: |
           yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
           "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-${ANDROIDAPI}" \
-            "build-tools;34.0.0"
-          yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+            "build-tools;34.0.0" \
+            "ndk;25.2.9519653"
+          yes | "$ANDROID_SDK_ROOT"/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
 
       - name: Build APK (debug)
         shell: bash
         run: |
+          # =========================
+          # 0. biến cho tiện
+          # =========================
+          P4A_DIR="$HOME/.buildozer/android/platform/python-for-android"
+
+          # =========================
           # 1. Chuẩn bị SDK cho Buildozer
+          # =========================
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
@@ -86,16 +94,14 @@ jobs:
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
 
-          # 2. Đảm bảo buildozer.spec có config cần thiết
-          grep -q "android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
-          grep -q "android.archs" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
-
-          # 3. Clone python-for-android master sạch
-          P4A_DIR="$HOME/.buildozer/android/platform/python-for-android"
+          # =========================
+          # 2. Chuẩn bị python-for-android custom
+          #    (ép buildozer dùng bản này, không dùng bản cũ)
+          # =========================
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
 
-          # 4. Patch libffi recipe để tránh autoreconf/autogen.sh lỗi
+          # Patch libffi recipe trong bản python-for-android vừa clone
           TARGET_FILE="$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
           rm -f "$TARGET_FILE"
           printf "%s\n" "from pythonforandroid.recipe import AutoconfRecipe" >> "$TARGET_FILE"
@@ -133,10 +139,32 @@ jobs:
           printf "%s\n" "" >> "$TARGET_FILE"
           printf "%s\n" "recipe = LibffiRecipe()" >> "$TARGET_FILE"
 
-          # 5. Build APK
+          # =========================
+          # 3. Ép buildozer dùng P4A_DIR này
+          #    & chắc chắn spec file có đủ config
+          # =========================
+          # ensure basic required fields
+          grep -q "^title =" buildozer.spec      || echo "title = LoginDemo" >> buildozer.spec
+          grep -q "^package.name =" buildozer.spec || echo "package.name = logindemo" >> buildozer.spec
+          grep -q "^package.domain =" buildozer.spec || echo "package.domain = org.example" >> buildozer.spec
+          grep -q "^version =" buildozer.spec    || echo "version = 0.1" >> buildozer.spec
+          grep -q "^requirements =" buildozer.spec || echo "requirements = python3,kivy==2.3.0" >> buildozer.spec
+          grep -q "^android.api =" buildozer.spec || echo "android.api = ${ANDROIDAPI}" >> buildozer.spec
+          grep -q "^android.minapi =" buildozer.spec || echo "android.minapi = ${ANDROIDMINAPI}" >> buildozer.spec
+          grep -q "^android.archs =" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
+          grep -q "^android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
+
+          # force our python-for-android checkout
+          grep -q "^p4a.source_dir" buildozer.spec || echo "p4a.source_dir = $P4A_DIR" >> buildozer.spec
+          grep -q "^p4a.local_recipes" buildozer.spec || echo "p4a.local_recipes = $P4A_DIR/pythonforandroid/recipes" >> buildozer.spec
+          grep -q "^p4a.branch" buildozer.spec || echo "p4a.branch = master" >> buildozer.spec
+
+          # =========================
+          # 4. Build APK
+          # =========================
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
-          cd "$GITHUB_WORKSPACE"
+
           buildozer android debug
 
       - name: Upload APK Artifact
