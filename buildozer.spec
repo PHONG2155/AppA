@@ -22,3 +22,6 @@ log_level = 2
 [buildozer]
 p4a.branch = master
 android.accept_sdk_license = True
+p4a.source_dir = /home/runner/p4a-custom
+p4a.local_recipes = /home/runner/p4a-custom/pythonforandroid/recipes
+
