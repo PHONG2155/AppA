@@ -1,29 +1,39 @@
 [app]
+# --- Thông tin app ---
 title = Login App
 package.name = logindemo
 package.domain = org.phong
+
+# PHẢI có version
+version = 0.1
+
+# file python chính để chạy app
+entrypoint = main.py
+
+# thư mục code nguồn
 source.dir = .
 source.include_exts = py,kv,png,jpg,ttf,txt
-entrypoint = main.py
+
+# chỉ cho chạy dọc
 orientation = portrait
 
-# Các thư viện Python đưa vào APK
-# Kivy 2.3.0 đang dùng trong workflow hiện tại (log trên nói p4a gọi kivy==2.3.0)
+# thư viện python sẽ được đóng gói vào APK
+# (dùng đúng phiên bản kivy mà ta đang build trong CI: 2.3.0)
 requirements = python3,kivy==2.3.0
 
-# chỉ build arm64 cho nhẹ (bỏ armeabi-v7a)
+# kiến trúc CPU build ra (chỉ 64-bit ARM để đơn giản hoá build)
 android.archs = arm64-v8a
 
-# API target & min API cho Android
+# API Android target và min API
 android.api = 34
 android.minapi = 21
 
-# ép dùng NDK r25b (chính là bản buildozer đã tải)
+# NDK và NDK API (khớp với NDK r25b mà buildozer tải)
 android.ndk = 25b
 android.ndk_api = 21
 
-# tránh hỏi license
+# ép accept license trong chế độ CI
 android.accept_sdk_license = True
 
-# tắt logcat attach tự động (an toàn hơn cho CI)
+# giảm spam log (2 = info)
 log_level = 2
