@@ -29,6 +29,7 @@ jobs:
             openjdk-17-jdk \
             python3-setuptools \
             python3-venv \
+            python3-distutils \
             libffi-dev \
             libssl-dev \
             liblzma-dev \
