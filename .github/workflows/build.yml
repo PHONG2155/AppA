@@ -9,6 +9,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
+      ANDROID_HOME: ${{ github.workspace }}/.android-sdk
+      PATH: ${{ github.workspace }}/.android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android-sdk/platform-tools:${{ env.PATH }}
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -26,6 +31,8 @@ jobs:
             git \
             zip \
             unzip \
+            wget \
+            tar \
             openjdk-17-jdk \
             python3-setuptools \
             python3-venv \
@@ -37,49 +44,52 @@ jobs:
             libfreetype6-dev \
             cmake
 
-      - name: Install buildozer and sdkmanager deps
+      - name: Install buildozer
         run: |
           pip install --upgrade pip
           pip install buildozer Cython
 
-          # sdkmanager needs these tools
-          sudo apt install -y wget tar
+      - name: Prepare Android SDK / sdkmanager
+        run: |
+          # tạo thư mục sdk root
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          cd "$ANDROID_SDK_ROOT/cmdline-tools"
 
-          # create Android SDK dir path the same way buildozer will
-          mkdir -p $HOME/.buildozer/android/platform
-
-          # Download commandline-tools (SDK manager)
-          cd $HOME/.buildozer/android/platform
-          mkdir -p android-sdk/cmdline-tools
-          cd android-sdk/cmdline-tools
-
-          # fetch latest commandline-tools (we'll call it "latest")
+          # tải commandline-tools chính thức từ Google
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip
           rm cmdtools.zip
+
+          # Google giải nén ra thư mục "cmdline-tools", mình cần rename thành "latest"
           mv cmdline-tools latest
 
-          # set env vars for later steps
-          echo "export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-          echo "export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-          echo "export PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$HOME/.buildozer/android/platform/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+          # verify sdkmanager exists
+          test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
       - name: Accept Android SDK licenses and install platforms/build-tools
         run: |
-          source $GITHUB_ENV
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
 
-          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
-
-          sdkmanager --sdk_root="$ANDROID_HOME" \
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
       - name: Build APK (debug)
         run: |
-          source $GITHUB_ENV
+          # buildozer expects ~/.buildozer and will try to install its own SDK,
+          # nhưng ta muốn nó dùng SDK mình đã chuẩn bị (ANDROID_SDK_ROOT)
+          # Trick: tạo symlink để buildozer nhìn thấy SDK tại chỗ nó mong đợi.
+          mkdir -p $HOME/.buildozer/android/platform
+          if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
+            ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
+          fi
+
+          # thêm 1 số cấu hình hữu ích nếu cần tránh prompt license (tùy version buildozer)
+          # echo "android.accept_sdk_license = True" >> buildozer.spec || true
+
           buildozer android debug
 
       - name: Upload APK artifact
