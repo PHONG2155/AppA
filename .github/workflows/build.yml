@@ -1,29 +1,100 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    env:
+      ANDROIDAPI: "34"
+      ANDROIDMINAPI: "21"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+            python-version: "3.11"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            unzip \
+            git \
+            openjdk-17-jdk \
+            libffi-dev \
+            libssl-dev \
+            zlib1g-dev
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install buildozer==1.5.0 cython==0.29.* virtualenv
+
+      - name: Prepare Android SDK / NDK
+        run: |
+          set -e
+
+          # tạo thư mục SDK chuẩn như buildozer mong đợi
+          mkdir -p $GITHUB_WORKSPACE/.android-sdk
+          export ANDROID_SDK_ROOT="$GITHUB_WORKSPACE/.android-sdk"
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+
+          # tải commandline-tools (sdkmanager)
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          cd "$ANDROID_SDK_ROOT/cmdline-tools"
+          curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdtools.zip
+          unzip -q cmdtools.zip
+          rm cmdtools.zip
+          mv cmdline-tools latest
+
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-${ANDROIDAPI}" "build-tools;36.1.0" "ndk;27.0.12077973"
+
+          # xuất biến môi trường cho các step sau
+          {
+            echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+            echo "ANDROID_HOME=$ANDROID_HOME"
+            echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+          } >> $GITHUB_ENV
+
       - name: Build APK (debug)
         shell: bash
         run: |
           set -e
 
-          # =========================
-          # 0. Đường dẫn cố định
-          # =========================
-          P4A_DIR="$HOME/p4a-custom"
+          echo "== ENV check =="
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "PATH=$PATH"
+          java -version
+          python --version
+          buildozer --version || true
 
-          # =========================
-          # 1. Chuẩn bị SDK cho Buildozer
-          # =========================
+          # ---------- 0. chuẩn bị sdk layout mà buildozer muốn ----------
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
-          # buildozer cũ đòi tools/bin/sdkmanager, mình giả lập
           mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
 
-          # =========================
-          # 2. Clone python-for-android riêng và patch libffi
-          # =========================
+          # ---------- 1. clone python-for-android để patch libffi ----------
+          P4A_DIR="$HOME/p4a-custom"
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
 
@@ -35,7 +106,6 @@ import sh
 from pythonforandroid.logger import shprint
 
 class LibffiRecipe(AutoconfRecipe):
-    # dùng libffi mới có sẵn configure script -> không cần autogen.sh/autoreconf
     version = "3.4.4"
     url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz"
     built_libraries = {"libffi.so": "inst/lib"}
@@ -67,13 +137,10 @@ class LibffiRecipe(AutoconfRecipe):
 recipe = LibffiRecipe()
 EOF
 
-          # =========================
-          # 3. Ghi cấu hình buildozer.spec với đường dẫn tuyệt đối
-          # =========================
+          # ---------- 2. ensure buildozer.spec có đủ field ----------
           ABS_P4A_DIR="$P4A_DIR"
           ABS_RECIPES_DIR="$P4A_DIR/pythonforandroid/recipes"
 
-          # bảo đảm các field tối thiểu tồn tại
           grep -q "^title =" buildozer.spec           || echo "title = LoginDemo" >> buildozer.spec
           grep -q "^package.name =" buildozer.spec    || echo "package.name = logindemo" >> buildozer.spec
           grep -q "^package.domain =" buildozer.spec  || echo "package.domain = org.example" >> buildozer.spec
@@ -84,12 +151,10 @@ EOF
           grep -q "^android.archs =" buildozer.spec   || echo "android.archs = arm64-v8a" >> buildozer.spec
           grep -q "^android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
 
-          # xóa cấu hình p4a cũ nếu có
           sed -i '/^p4a\.source_dir/d' buildozer.spec
           sed -i '/^p4a\.local_recipes/d' buildozer.spec
           sed -i '/^p4a\.branch/d' buildozer.spec
 
-          # thêm lại config p4a với đường dẫn tuyệt đối
           echo "p4a.source_dir = ${ABS_P4A_DIR}" >> buildozer.spec
           echo "p4a.local_recipes = ${ABS_RECIPES_DIR}" >> buildozer.spec
           echo "p4a.branch = master" >> buildozer.spec
@@ -98,16 +163,18 @@ EOF
           cat buildozer.spec
           echo "================================"
 
-          # =========================
-          # 4. Xoá libffi cache cũ (nếu có) để bắt buộc dùng recipe mới
-          # =========================
+          # ---------- 3. cleanup libffi cache ----------
           rm -rf .buildozer/android/platform/build-*/build/other_builds/libffi || true
           rm -rf $HOME/.buildozer/android/platform/build-*/build/other_builds/libffi || true
 
-          # =========================
-          # 5. Build APK
-          # =========================
+          # ---------- 4. build ----------
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
-
           buildozer android debug
+
+      - name: Upload APK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: bin/*.apk
