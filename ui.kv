@@ -1,107 +1,55 @@
 #:kivy 2.3.0
+#:import dp kivy.metrics.dp
 
 <GradientBG@FloatLayout>:
     canvas.before:
+        # nền xanh đậm
         Color:
-            rgba: (0.07, 0.09, 0.2, 1)  # nền tối xanh navy
+            rgba: (0.03, 0.07, 0.15, 1)
         Rectangle:
             pos: self.pos
             size: self.size
-        Color:
-            rgba: (0.0, 0.6, 0.7, 0.18)  # lớp gradient teal
-        RoundedRectangle:
-            pos: self.x - self.width*0.3, self.y + self.height*0.4
-            size: self.width*1.4, self.height*1.2
-            radius: [200,200,200,200]
-        Color:
-            rgba: (0.4, 0.2, 0.8, 0.18)  # lớp gradient tím
-        RoundedRectangle:
-            pos: self.x + self.width*0.2, self.y - self.height*0.2
-            size: self.width*1.2, self.height*1.0
-            radius: [200,200,200,200]
 
-<Card@BoxLayout>:
+        # mảng teal
+        Color:
+            rgba: (0.0, 0.6, 0.7, 0.22)
+        RoundedRectangle:
+            pos: self.x - self.width * 0.4, self.y + self.height * 0.45
+            size: self.width * 1.6, self.height * 1.1
+            radius: [260,260,260,260]
+
+        # mảng tím
+        Color:
+            rgba: (0.45, 0.3, 0.8, 0.18)
+        RoundedRectangle:
+            pos: self.x + self.width * 0.15, self.y - self.height * 0.15
+            size: self.width * 1.3, self.height * 1.0
+            radius: [260,260,260,260]
+
+
+<GlassCard@BoxLayout>:
     orientation: "vertical"
-    size_hint: 0.9, None
-    height: self.minimum_height
-    padding: dp(20)
-    spacing: dp(14)
-    pos_hint: {"center_x": 0.5}
+    size_hint: None, None
+    width: dp(320)
+    height: dp(480)
+    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+    padding: dp(24)
+    spacing: dp(12)
     canvas.before:
+        # nền kính mờ
         Color:
             rgba: (1,1,1,0.07)
         RoundedRectangle:
             pos: self.pos
             size: self.size
-            radius: [20,20,20,20]
+            radius: [24,24,24,24]
+        # viền sáng
         Color:
             rgba: (1,1,1,0.18)
         Line:
             width: 1
-            rounded_rectangle: (self.x, self.y, self.width, self.height, 20, 20, 20, 20, 100)
+            rounded_rectangle: (self.x, self.y, self.width, self.height, 24,24,24,24,100)
 
-<TitleLabel@Label>:
-    font_size: "24sp"
-    bold: True
-    color: 1,1,1,1
-    halign: "left"
-    text_size: self.size
-
-<HintLabel@Label>:
-    font_size: "14sp"
-    color: .7,.7,.8,1
-    halign: "left"
-    text_size: self.size
-
-<InputBox@BoxLayout>:
-    orientation: "vertical"
-    size_hint_y: None
-    height: self.minimum_height
-    spacing: dp(6)
-
-    Label:
-        text: root.label if hasattr(root, "label") else ""
-        font_size: "14sp"
-        color: .8,.9,1,1
-        size_hint_y: None
-        height: self.texture_size[1]
-
-    BoxLayout:
-        size_hint_y: None
-        height: dp(48)
-        padding: dp(14), 0
-        spacing: dp(8)
-        canvas.before:
-            Color:
-                rgba: 1,1,1,0.08
-            RoundedRectangle:
-                pos: self.pos
-                size: self.size
-                radius: [12,12,12,12]
-            Color:
-                rgba: 1,1,1,0.22
-            Line:
-                width: 1
-                rounded_rectangle: (self.x, self.y, self.width, self.height, 12,12,12,12,100)
-
-        Image:
-            source: root.icon if hasattr(root, "icon") else ""
-            size_hint_x: None
-            width: dp(20)
-            allow_stretch: True
-            keep_ratio: True
-            color: 1,1,1,0.8
-
-        TextInput:
-            id: field
-            hint_text: root.hint if hasattr(root, "hint") else ""
-            background_color: 0,0,0,0
-            foreground_color: 1,1,1,1
-            cursor_color: 1,1,1,1
-            padding: [0, dp(14), 0, dp(14)]
-            password: root.password if hasattr(root, "password") else False
-            multiline: False
-            font_size: "15sp"
 
 <PrimaryButton@Button>:
     size_hint_y: None
@@ -113,16 +61,20 @@
     color: 1,1,1,1
     canvas.before:
         Color:
-            rgba: (0.0, 0.6, 0.7, 1)  # teal
+            rgba: (0.0, 0.45, 0.85, 1)  # xanh fintech
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [14,14,14,14]
 
+
 <TextButton@ButtonBehavior+Label>:
+    size_hint_y: None
+    height: dp(24)
     color: 0.5,0.8,1,1
     font_size: "14sp"
     halign: "center"
+    valign: "middle"
     text_size: self.size
 
 
@@ -132,46 +84,128 @@
     message_label: login_msg
 
     GradientBG:
-        Card:
-            spacing: dp(16)
-            padding: dp(20)
+        GlassCard:
+
+            # ----- Tiêu đề -----
+            Label:
+                text: "Xin chào"
+                bold: True
+                font_size: "22sp"
+                color: 1,1,1,1
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+                size_hint_y: None
+                height: dp(30)
+
+            Label:
+                text: "Đăng nhập để tiếp tục"
+                font_size: "14sp"
+                color: .7,.8,.9,1
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+                size_hint_y: None
+                height: dp(20)
+
+            # ----- Email label -----
+            Label:
+                text: "Email"
+                font_size: "14sp"
+                color: .8,.9,1,1
+                size_hint_y: None
+                height: dp(20)
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+
+            # ----- Email input -----
             BoxLayout:
                 orientation: "vertical"
                 size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(4)
-                TitleLabel:
-                    text: "Chào mừng trở lại 👋"
-                HintLabel:
-                    text: "Đăng nhập để tiếp tục"
+                height: dp(48)
+                canvas.before:
+                    Color:
+                        rgba: 1,1,1,0.08
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [14,14,14,14]
+                    Color:
+                        rgba: 1,1,1,0.16
+                    Line:
+                        width: 1
+                        rounded_rectangle: (self.x, self.y, self.width, self.height, 14,14,14,14,100)
 
-            InputBox:
-                label: "Email"
-                icon: ""
-                hint: "nhập email"
-                InputBox.field:
+                TextInput:
                     id: email_field
+                    hint_text: "nhập email"
+                    background_color: 0,0,0,0
+                    foreground_color: 1,1,1,1
+                    cursor_color: 1,1,1,1
+                    padding: [dp(10), dp(10)]
+                    password: False
+                    multiline: False
+                    font_size: "15sp"
 
-            InputBox:
-                label: "Mật khẩu"
-                icon: ""
-                hint: "••••••"
-                password: True
-                InputBox.field:
+            # ----- Password label -----
+            Label:
+                text: "Mật khẩu"
+                font_size: "14sp"
+                color: .8,.9,1,1
+                size_hint_y: None
+                height: dp(20)
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+
+            # ----- Password input -----
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: dp(48)
+                canvas.before:
+                    Color:
+                        rgba: 1,1,1,0.08
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [14,14,14,14]
+                    Color:
+                        rgba: 1,1,1,0.16
+                    Line:
+                        width: 1
+                        rounded_rectangle: (self.x, self.y, self.width, self.height, 14,14,14,14,100)
+
+                TextInput:
                     id: pw_field
+                    hint_text: "••••••"
+                    background_color: 0,0,0,0
+                    foreground_color: 1,1,1,1
+                    cursor_color: 1,1,1,1
+                    padding: [dp(10), dp(10)]
+                    password: True
+                    multiline: False
+                    font_size: "15sp"
 
+            # ----- Thông báo (lỗi hoặc OK) -----
             Label:
                 id: login_msg
                 text: ""
                 font_size: "14sp"
                 color: 1,0.4,0.4,1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
                 size_hint_y: None
-                height: self.texture_size[1]
+                height: dp(20)
 
+            # ----- Nút đăng nhập -----
             PrimaryButton:
                 text: "Đăng nhập"
                 on_release: root.do_login()
 
+            # ----- Link đi tới đăng ký -----
             TextButton:
                 text: "Chưa có tài khoản? Đăng ký"
                 on_release: root.goto_register()
@@ -179,89 +213,239 @@
 
 <RegisterScreen>:
     name_input: name_field
-    email_input: email_field
-    pw_input: pw_field
-    pw2_input: pw2_field
+    email_input: email_reg_field
+    pw_input: pw_reg_field
+    pw2_input: pw2_reg_field
     message_label: reg_msg
 
     GradientBG:
-        Card:
-            spacing: dp(16)
-            padding: dp(20)
+        GlassCard:
+
+            # ----- Tiêu đề -----
+            Label:
+                text: "Tạo tài khoản"
+                bold: True
+                font_size: "22sp"
+                color: 1,1,1,1
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+                size_hint_y: None
+                height: dp(30)
+
+            Label:
+                text: "Miễn phí, nhanh chóng"
+                font_size: "14sp"
+                color: .7,.8,.9,1
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+                size_hint_y: None
+                height: dp(20)
+
+            # ----- Họ và tên -----
+            Label:
+                text: "Họ và tên"
+                font_size: "14sp"
+                color: .8,.9,1,1
+                size_hint_y: None
+                height: dp(20)
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
 
             BoxLayout:
                 orientation: "vertical"
                 size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(4)
-                TitleLabel:
-                    text: "Tạo tài khoản ✨"
-                HintLabel:
-                    text: "Miễn phí, nhanh chóng"
+                height: dp(48)
+                canvas.before:
+                    Color:
+                        rgba: 1,1,1,0.08
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [14,14,14,14]
+                    Color:
+                        rgba: 1,1,1,0.16
+                    Line:
+                        width: 1
+                        rounded_rectangle: (self.x, self.y, self.width, self.height, 14,14,14,14,100)
 
-            InputBox:
-                label: "Họ và tên"
-                hint: "Ví dụ: Nguyễn Văn A"
-                icon: ""
-                InputBox.field:
+                TextInput:
                     id: name_field
+                    hint_text: "Ví dụ: Nguyễn Văn A"
+                    background_color: 0,0,0,0
+                    foreground_color: 1,1,1,1
+                    cursor_color: 1,1,1,1
+                    padding: [dp(10), dp(10)]
+                    multiline: False
+                    font_size: "15sp"
 
-            InputBox:
-                label: "Email"
-                hint: "you@example.com"
-                icon: ""
-                InputBox.field:
-                    id: email_field
+            # ----- Email -----
+            Label:
+                text: "Email"
+                font_size: "14sp"
+                color: .8,.9,1,1
+                size_hint_y: None
+                height: dp(20)
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
 
-            InputBox:
-                label: "Mật khẩu"
-                hint: "ít nhất 4 ký tự"
-                icon: ""
-                password: True
-                InputBox.field:
-                    id: pw_field
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: dp(48)
+                canvas.before:
+                    Color:
+                        rgba: 1,1,1,0.08
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [14,14,14,14]
+                    Color:
+                        rgba: 1,1,1,0.16
+                    Line:
+                        width: 1
+                        rounded_rectangle: (self.x, self.y, self.width, self.height, 14,14,14,14,100)
 
-            InputBox:
-                label: "Nhập lại mật khẩu"
-                hint: "gõ lại giống ở trên"
-                icon: ""
-                password: True
-                InputBox.field:
-                    id: pw2_field
+                TextInput:
+                    id: email_reg_field
+                    hint_text: "you@example.com"
+                    background_color: 0,0,0,0
+                    foreground_color: 1,1,1,1
+                    cursor_color: 1,1,1,1
+                    padding: [dp(10), dp(10)]
+                    multiline: False
+                    font_size: "15sp"
 
+            # ----- Mật khẩu -----
+            Label:
+                text: "Mật khẩu"
+                font_size: "14sp"
+                color: .8,.9,1,1
+                size_hint_y: None
+                height: dp(20)
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: dp(48)
+                canvas.before:
+                    Color:
+                        rgba: 1,1,1,0.08
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [14,14,14,14]
+                    Color:
+                        rgba: 1,1,1,0.16
+                    Line:
+                        width: 1
+                        rounded_rectangle: (self.x, self.y, self.width, self.height, 14,14,14,14,100)
+
+                TextInput:
+                    id: pw_reg_field
+                    hint_text: "ít nhất 4 ký tự"
+                    background_color: 0,0,0,0
+                    foreground_color: 1,1,1,1
+                    cursor_color: 1,1,1,1
+                    padding: [dp(10), dp(10)]
+                    password: True
+                    multiline: False
+                    font_size: "15sp"
+
+            # ----- Nhập lại mật khẩu -----
+            Label:
+                text: "Nhập lại mật khẩu"
+                font_size: "14sp"
+                color: .8,.9,1,1
+                size_hint_y: None
+                height: dp(20)
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
+
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: dp(48)
+                canvas.before:
+                    Color:
+                        rgba: 1,1,1,0.08
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [14,14,14,14]
+                    Color:
+                        rgba: 1,1,1,0.16
+                    Line:
+                        width: 1
+                        rounded_rectangle: (self.x, self.y, self.width, self.height, 14,14,14,14,100)
+
+                TextInput:
+                    id: pw2_reg_field
+                    hint_text: "gõ lại giống ở trên"
+                    background_color: 0,0,0,0
+                    foreground_color: 1,1,1,1
+                    cursor_color: 1,1,1,1
+                    padding: [dp(10), dp(10)]
+                    password: True
+                    multiline: False
+                    font_size: "15sp"
+
+            # ----- Thông báo trạng thái -----
             Label:
                 id: reg_msg
                 text: ""
                 font_size: "14sp"
                 color: 1,0.4,0.4,1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
                 size_hint_y: None
-                height: self.texture_size[1]
+                height: dp(20)
 
+            # ----- Nút Đăng ký -----
             PrimaryButton:
                 text: "Đăng ký"
                 on_release: root.do_register()
 
+            # Link quay về đăng nhập
             TextButton:
                 text: "Đã có tài khoản? Đăng nhập"
                 on_release: root.goto_login()
 
 
 <HomeScreen>:
+    welcome_text: ""
     GradientBG:
-        Card:
-            spacing: dp(20)
-            padding: dp(20)
+        GlassCard:
 
-            BoxLayout:
-                orientation: "vertical"
+            Label:
+                text: root.welcome_text
+                bold: True
+                font_size: "22sp"
+                color: 1,1,1,1
+                halign: "left"
+                valign: "middle"
+                text_size: self.size
                 size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(6)
+                height: dp(30)
 
-                TitleLabel:
-                    text: root.welcome_text
-                HintLabel:
-                    text: "Bạn đã đăng nhập thành công. Đây là màn hình chính."
+            Label:
+                text: "Bạn đã đăng nhập thành công. Đây là màn hình chính."
+                font_size: "14sp"
+                color: .7,.8,.9,1
+                halign: "left"
+                valign: "top"
+                text_size: self.size
+                size_hint_y: None
+                height: dp(40)
+
             PrimaryButton:
                 text: "Đăng xuất"
                 on_release:
