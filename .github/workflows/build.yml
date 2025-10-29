@@ -13,7 +13,6 @@ jobs:
       ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
       ANDROID_HOME: ${{ github.workspace }}/.android-sdk
       PATH: ${{ github.workspace }}/.android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android-sdk/platform-tools:/usr/local/bin:/usr/bin:/bin
-      # ép các biến Android cho p4a/buildozer
       ANDROIDAPI: "34"
       ANDROIDMINAPI: "21"
 
@@ -54,7 +53,6 @@ jobs:
       - name: Install buildozer
         run: |
           pip install --upgrade pip
-          # buildozer stable
           pip install buildozer Cython
 
       - name: Prepare Android SDK / sdkmanager
@@ -62,15 +60,12 @@ jobs:
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
 
-          # Tải commandline tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip
           rm cmdtools.zip
 
-          # Đổi tên đúng cấu trúc ("latest")
           mv cmdline-tools latest
 
-          # sanity check
           test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
       - name: Accept Android SDK licenses and install platforms/build-tools
@@ -86,13 +81,13 @@ jobs:
 
       - name: Build APK (debug)
         run: |
-          # Symlink SDK để buildozer nghĩ SDK nằm trong ~/.buildozer như bình thường
+          # 1. Chuẩn bị SDK path cho buildozer
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
-          # Giả lập cấu trúc tools/bin cũ để tránh crash sdkmanager path legacy
+          # 2. Tạo lại cấu trúc tools/bin cũ để buildozer khỏi than thiếu sdkmanager
           mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
           if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
             ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
@@ -103,22 +98,28 @@ jobs:
               $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
           fi
 
-          # Ensure license auto-accept in spec
+          # 3. Đảm bảo buildozer.spec có accept license và arch arm64-v8a
           if ! grep -q "android.accept_sdk_license" buildozer.spec; then
             echo "android.accept_sdk_license = True" >> buildozer.spec
           fi
-
-          # Đảm bảo buildozer.spec đã set android.archs = arm64-v8a
-          # (ta chỉ build 64-bit để giảm rủi ro libffi fail trên armeabi-v7a)
           if ! grep -q "android.archs" buildozer.spec; then
             echo "android.archs = arm64-v8a" >> buildozer.spec
           fi
 
-          # Đặt JAVA_HOME cho Gradle
+          # 4. Gỡ python-for-android cũ (nếu có) và thay bằng bản mới (master)
+          P4A_DIR="$HOME/.buildozer/android/platform/python-for-android"
+          rm -rf "$P4A_DIR"
+          git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
+          cd "$P4A_DIR"
+          # đảm bảo đang ở master (depth 1 đã checkout master HEAD)
+          git rev-parse --short HEAD
+
+          # 5. Export JAVA_HOME để Gradle dùng JDK 17
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
 
-          # Cuối cùng build APK debug
+          # 6. Chạy buildozer
+          cd "$GITHUB_WORKSPACE"
           buildozer android debug
 
       - name: Upload APK artifact
