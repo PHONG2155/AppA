@@ -13,10 +13,10 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install system dependencies
         run: |
@@ -29,7 +29,6 @@ jobs:
             openjdk-17-jdk \
             python3-setuptools \
             python3-venv \
-            python3-distutils \
             libffi-dev \
             libssl-dev \
             liblzma-dev \
