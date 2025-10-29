@@ -13,6 +13,9 @@ jobs:
       ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
       ANDROID_HOME: ${{ github.workspace }}/.android-sdk
       PATH: ${{ github.workspace }}/.android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.android-sdk/platform-tools:/usr/local/bin:/usr/bin:/bin
+      # ép các biến Android cho p4a/buildozer
+      ANDROIDAPI: "34"
+      ANDROIDMINAPI: "21"
 
     steps:
       - name: Checkout source
@@ -42,28 +45,32 @@ jobs:
             zlib1g-dev \
             libjpeg-dev \
             libfreetype6-dev \
-            cmake
+            cmake \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config
 
       - name: Install buildozer
         run: |
           pip install --upgrade pip
+          # buildozer stable
           pip install buildozer Cython
 
       - name: Prepare Android SDK / sdkmanager
         run: |
-          # Tạo SDK root trong workspace
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
 
-          # Tải commandline-tools từ Google
+          # Tải commandline tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip
           rm cmdtools.zip
 
-          # Google giải nén thành "cmdline-tools", ta đổi tên thành "latest"
+          # Đổi tên đúng cấu trúc ("latest")
           mv cmdline-tools latest
 
-          # Sanity check: sdkmanager phải tồn tại
+          # sanity check
           test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
       - name: Accept Android SDK licenses and install platforms/build-tools
@@ -72,44 +79,46 @@ jobs:
 
           sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
-            "platforms;android-34" \
+            "platforms;android-${ANDROIDAPI}" \
             "build-tools;34.0.0"
 
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
       - name: Build APK (debug)
         run: |
-          # 1. Chuẩn bị thư mục mà buildozer mong đợi
-          # buildozer sẽ nhìn ở ~/.buildozer/android/platform/android-sdk
+          # Symlink SDK để buildozer nghĩ SDK nằm trong ~/.buildozer như bình thường
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
-          # 2. Giả lập cấu trúc tools/bin cũ để buildozer không phàn nàn
+          # Giả lập cấu trúc tools/bin cũ để tránh crash sdkmanager path legacy
           mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
-
-          # link sdkmanager & avdmanager từ cmdline-tools/latest/bin
           if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
             ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
               $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
           fi
-
           if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" ]; then
             ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" \
               $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
           fi
 
-          # 3. Đảm bảo license đã accept trong spec
+          # Ensure license auto-accept in spec
           if ! grep -q "android.accept_sdk_license" buildozer.spec; then
             echo "android.accept_sdk_license = True" >> buildozer.spec
           fi
 
-          # 4. (Optional) đảm bảo buildozer thấy Java 17 qua env
+          # Đảm bảo buildozer.spec đã set android.archs = arm64-v8a
+          # (ta chỉ build 64-bit để giảm rủi ro libffi fail trên armeabi-v7a)
+          if ! grep -q "android.archs" buildozer.spec; then
+            echo "android.archs = arm64-v8a" >> buildozer.spec
+          fi
+
+          # Đặt JAVA_HOME cho Gradle
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
 
-          # 5. Build APK debug
+          # Cuối cùng build APK debug
           buildozer android debug
 
       - name: Upload APK artifact
