@@ -76,7 +76,7 @@ jobs:
       - name: Build APK (debug)
         shell: bash
         run: |
-          # Chuẩn bị SDK cho Buildozer
+          # 1. Chuẩn bị SDK cho Buildozer
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
@@ -86,55 +86,54 @@ jobs:
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
           ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
 
-          # Bổ sung cấu hình trong buildozer.spec
+          # 2. Đảm bảo buildozer.spec có config cần thiết
           grep -q "android.accept_sdk_license" buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
           grep -q "android.archs" buildozer.spec || echo "android.archs = arm64-v8a" >> buildozer.spec
 
-          # Clone python-for-android
+          # 3. Clone python-for-android master sạch
           P4A_DIR="$HOME/.buildozer/android/platform/python-for-android"
           rm -rf "$P4A_DIR"
           git clone --depth 1 https://github.com/kivy/python-for-android.git "$P4A_DIR"
 
-          # PATCH recipe libffi để bỏ autogen.sh lỗi
-          echo "Patching libffi recipe..."
-          cat > "$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py" << 'EOF'
-from pythonforandroid.recipe import AutoconfRecipe
-import sh
-from pythonforandroid.logger import shprint
+          # 4. Patch libffi recipe để tránh autoreconf/autogen.sh lỗi
+          TARGET_FILE="$P4A_DIR/pythonforandroid/recipes/libffi/__init__.py"
+          rm -f "$TARGET_FILE"
+          printf "%s\n" "from pythonforandroid.recipe import AutoconfRecipe" >> "$TARGET_FILE"
+          printf "%s\n" "import sh" >> "$TARGET_FILE"
+          printf "%s\n" "from pythonforandroid.logger import shprint" >> "$TARGET_FILE"
+          printf "%s\n" "" >> "$TARGET_FILE"
+          printf "%s\n" "class LibffiRecipe(AutoconfRecipe):" >> "$TARGET_FILE"
+          printf "%s\n" "    version = \"3.4.4\"" >> "$TARGET_FILE"
+          printf "%s\n" "    url = \"https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz\"" >> "$TARGET_FILE"
+          printf "%s\n" "    built_libraries = {\"libffi.so\": \"inst/lib\"}" >> "$TARGET_FILE"
+          printf "%s\n" "" >> "$TARGET_FILE"
+          printf "%s\n" "    def should_build(self, arch):" >> "$TARGET_FILE"
+          printf "%s\n" "        return True" >> "$TARGET_FILE"
+          printf "%s\n" "" >> "$TARGET_FILE"
+          printf "%s\n" "    def build_arch(self, arch):" >> "$TARGET_FILE"
+          printf "%s\n" "        env = self.get_build_env(arch)" >> "$TARGET_FILE"
+          printf "%s\n" "        build_dir = self.get_build_dir(arch.arch)" >> "$TARGET_FILE"
+          printf "%s\n" "        install_dir = self.get_install_dir(arch)" >> "$TARGET_FILE"
+          printf "%s\n" "" >> "$TARGET_FILE"
+          printf "%s\n" "        self.apply_patches(arch)" >> "$TARGET_FILE"
+          printf "%s\n" "" >> "$TARGET_FILE"
+          printf "%s\n" "        with self.chdir(build_dir):" >> "$TARGET_FILE"
+          printf "%s\n" "            host = arch.command_prefix" >> "$TARGET_FILE"
+          printf "%s\n" "            shprint(" >> "$TARGET_FILE"
+          printf "%s\n" "                sh.Command(\"./configure\")," >> "$TARGET_FILE"
+          printf "%s\n" "                f\"--host={host}\"," >> "$TARGET_FILE"
+          printf "%s\n" "                \"--enable-static\"," >> "$TARGET_FILE"
+          printf "%s\n" "                \"--disable-docs\"," >> "$TARGET_FILE"
+          printf "%s\n" "                \"--disable-dependency-tracking\"," >> "$TARGET_FILE"
+          printf "%s\n" "                f\"--prefix={install_dir}\"," >> "$TARGET_FILE"
+          printf "%s\n" "                _env=env" >> "$TARGET_FILE"
+          printf "%s\n" "            )" >> "$TARGET_FILE"
+          printf "%s\n" "            shprint(sh.make, \"-j4\", _env=env)" >> "$TARGET_FILE"
+          printf "%s\n" "            shprint(sh.make, \"install\", _env=env)" >> "$TARGET_FILE"
+          printf "%s\n" "" >> "$TARGET_FILE"
+          printf "%s\n" "recipe = LibffiRecipe()" >> "$TARGET_FILE"
 
-class LibffiRecipe(AutoconfRecipe):
-    version = "3.4.4"
-    url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz"
-    built_libraries = {"libffi.so": "inst/lib"}
-
-    def should_build(self, arch):
-        return True
-
-    def build_arch(self, arch):
-        env = self.get_build_env(arch)
-        build_dir = self.get_build_dir(arch.arch)
-        install_dir = self.get_install_dir(arch)
-
-        self.apply_patches(arch)
-
-        with self.chdir(build_dir):
-            host = arch.command_prefix
-            shprint(
-                sh.Command("./configure"),
-                f"--host={host}",
-                "--enable-static",
-                "--disable-docs",
-                "--disable-dependency-tracking",
-                f"--prefix={install_dir}",
-                _env=env
-            )
-            shprint(sh.make, "-j4", _env=env)
-            shprint(sh.make, "install", _env=env)
-
-recipe = LibffiRecipe()
-EOF
-
-          # Build APK
+          # 5. Build APK
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
           cd "$GITHUB_WORKSPACE"
