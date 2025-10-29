@@ -24,10 +24,12 @@ jobs:
         with:
           python-version: '3.10'
 
+      # --- THAY ĐỔI 1 ---
+      # Ghim (pin) phiên bản Cython < 3.0 để tương thích với Kivy 2.3.0
       - name: Install buildozer + deps
         run: |
           python -m pip install --upgrade pip
-          pip install "cython<3.1" buildozer
+          pip install "cython==0.29.37" buildozer
 
       - name: Install system build deps
         run: |
@@ -40,9 +42,9 @@ jobs:
           buildozer android p4a -- version || true
           echo "Warmup done ✅"
 
-      - name: Build APK (debug) using local libffi stub
-        env:
-          P4A_LOCAL_RECIPES: ./p4a_local/recipes
+      # --- THAY ĐỔI 2 ---
+      # Đã xóa 'env: P4A_LOCAL_RECIPES' để dùng công thức libffi mặc định, ổn định
+      - name: Build APK (debug)
         run: |
           buildozer android debug
 
