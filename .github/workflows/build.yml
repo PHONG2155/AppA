@@ -51,19 +51,19 @@ jobs:
 
       - name: Prepare Android SDK / sdkmanager
         run: |
-          # Tạo thư mục SDK
+          # Tạo SDK root trong workspace
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
 
-          # Tải commandline-tools chính thức (sdkmanager nằm trong này)
+          # Tải commandline-tools từ Google
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip
           rm cmdtools.zip
 
-          # Google giải nén ra "cmdline-tools", mình rename thành "latest"
+          # Google giải nén thành "cmdline-tools", ta đổi tên thành "latest"
           mv cmdline-tools latest
 
-          # Kiểm tra sdkmanager có tồn tại
+          # Sanity check: sdkmanager phải tồn tại
           test -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 
       - name: Accept Android SDK licenses and install platforms/build-tools
@@ -79,18 +79,37 @@ jobs:
 
       - name: Build APK (debug)
         run: |
-          # buildozer mặc định tìm SDK ở ~/.buildozer/android/platform/android-sdk
-          # Ta sẽ link SDK mình đã chuẩn bị vào đó để tránh tải lại và tránh hỏi license
+          # 1. Chuẩn bị thư mục mà buildozer mong đợi
+          # buildozer sẽ nhìn ở ~/.buildozer/android/platform/android-sdk
           mkdir -p $HOME/.buildozer/android/platform
           if [ ! -d $HOME/.buildozer/android/platform/android-sdk ]; then
             ln -s "$ANDROID_SDK_ROOT" $HOME/.buildozer/android/platform/android-sdk
           fi
 
-          # Bật chấp nhận license trong spec (nếu dòng đã có thì không sao)
+          # 2. Giả lập cấu trúc tools/bin cũ để buildozer không phàn nàn
+          mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
+
+          # link sdkmanager & avdmanager từ cmdline-tools/latest/bin
+          if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+              $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          fi
+
+          if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" ]; then
+            ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" \
+              $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
+          fi
+
+          # 3. Đảm bảo license đã accept trong spec
           if ! grep -q "android.accept_sdk_license" buildozer.spec; then
             echo "android.accept_sdk_license = True" >> buildozer.spec
           fi
 
+          # 4. (Optional) đảm bảo buildozer thấy Java 17 qua env
+          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+          export PATH=$JAVA_HOME/bin:$PATH
+
+          # 5. Build APK debug
           buildozer android debug
 
       - name: Upload APK artifact
